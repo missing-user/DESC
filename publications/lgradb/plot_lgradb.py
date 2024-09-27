@@ -7,6 +7,7 @@ import simsopt
 
 import json
 from scipy.spatial.distance import cdist
+from scipy.stats import linregress
 
 
 def coil_surf_distance(curves, lcfs) -> np.ndarray:
@@ -23,19 +24,28 @@ def compute_coil_surf_dist(simsopt_filename):
     return coil_surf_distance(curves, lcfs)
 
 
+def compare_bdistrib(simsopt_name):
+    base_filepath = f"../../../single-stage-opt/replicate_lgradb/tmp/dist05_mpol=12/bdistrib_out{simsopt_name.replace('.json','.nc')}"
+    # Some fits of the exponential decay, take a look at compareSingularValuesPlot.py and bdistrib_util.py
+    return decay
+
+
 with open("all_results.json") as f:
     regcoil_distances = json.load(f)
-    coil_surf_dist = {}
-    # The distances here were verified with the QUASR database GUI and are correct.
-    for simsopt_name in regcoil_distances.keys():
-        coil_surf_dist[simsopt_name] = compute_coil_surf_dist(
-            f"../../../single-stage-opt/replicate_lgradb/db/{simsopt_name}"
-        )
-        print(
-            simsopt_name,
-            "has minimum filament coil distance",
-            np.min(coil_surf_dist[simsopt_name]),
-        )
+    for key in regcoil_distances.keys():
+        regcoil_distances[key] /= 5
+
+coil_surf_dist = {}
+# The distances here were verified with the QUASR database GUI and are correct.
+for simsopt_name in regcoil_distances.keys():
+    coil_surf_dist[simsopt_name] = compute_coil_surf_dist(
+        f"../../../single-stage-opt/replicate_lgradb/db/{simsopt_name}"
+    )
+    print(
+        simsopt_name,
+        "has minimum filament coil distance",
+        np.min(coil_surf_dist[simsopt_name]),
+    )
 
 LgradB_keyed = {}
 desc_outputs = list(filter(lambda x: x.endswith("_output.h5"), os.listdir()))
@@ -55,7 +65,7 @@ for filename in desc_outputs:
     LgradB = min(LgradBs)
     ax[1, 0].plot(LgradBs)
     ax[1, 0].hlines(LgradB, 0, LgradBs.shape[0], linestyles="dashed")
-    ax[1, 0].set_title("LgradB metric")
+    ax[1, 0].set_title("$L^*_{\\nabla B}$")
 
     # REGCOIL distance
     simsopt_name = filename.replace("input.", "serial").replace("_output.h5", ".json")
@@ -74,7 +84,7 @@ for filename in desc_outputs:
         LgradBs.shape[0],
     )
     ax[1, 1].set_ylim(bottom=0)
-    ax[1, 1].legend(["LgradB", "Distance from REGCOIL iteration"])
+    ax[1, 1].legend(["$L^*_{\\nabla B}$", "Coil winding surf. dist."])
 
     # QUASR Filament coil distance
     ax[1, 2].plot(coil_surf_dist[simsopt_name], label="coil")
@@ -88,63 +98,58 @@ for filename in desc_outputs:
     fig.suptitle(filename)
     fig.show()
 
-plt.show()
 
 #########################
 
 # Extract filenames and corresponding values for plotting
-filenames = list(regcoil_distances.keys())
-regcoil_vals = [regcoil_distances[f] for f in filenames]
-LgradB_vals = [LgradB_keyed[f] for f in filenames]
-coil_min_vals = [np.min(coil_surf_dist[f]) for f in filenames]
-
-# Plot 1: regcoil_distances vs LgradB_keyed
-plt.figure(figsize=(10, 6))
-plt.scatter(regcoil_vals, LgradB_vals, color="blue", label="regcoil vs LgradB")
-plt.xlabel("regcoil_distances")
-plt.ylabel("LgradB_keyed")
-plt.title("Scatter Plot: regcoil_distances vs LgradB_keyed")
-plt.gca().set_ylim(bottom=0)
-plt.gca().set_xlim(left=0)
-plt.grid(True)
-plt.legend()
-
-# Plot 2: regcoil_distances vs min(coil_surf_dist)
-plt.figure(figsize=(10, 6))
-plt.scatter(
-    regcoil_vals, coil_min_vals, color="green", label="regcoil vs min(coil_surf_dist)"
+filenames = list(LgradB_keyed.keys())
+regcoil_vals = ([regcoil_distances[f] for f in filenames], "REGCOIL distance")
+LgradB_vals = ([LgradB_keyed[f] for f in filenames], "$L^*_{\\nabla B}$")
+coil_min_vals = (
+    [np.min(coil_surf_dist[f]) for f in filenames],
+    "QUASR coil distance",
 )
-plt.xlabel("regcoil_distances")
-plt.ylabel("min(coil_surf_dist)")
-plt.title("Scatter Plot: regcoil_distances vs min(coil_surf_dist)")
-plt.gca().set_ylim(bottom=0)
-plt.gca().set_xlim(left=0)
-plt.grid(True)
-plt.legend()
 
-# Plot 3: LgradB_keyed vs min(coil_surf_dist)
-plt.figure(figsize=(10, 6))
-plt.scatter(
-    LgradB_vals, coil_min_vals, color="red", label="LgradB vs min(coil_surf_dist)"
-)
-plt.xlabel("LgradB_keyed")
-plt.ylabel("min(coil_surf_dist)")
-plt.title("Scatter Plot: LgradB_keyed vs min(coil_surf_dist)")
-plt.gca().set_ylim(bottom=0)
-plt.gca().set_xlim(left=0)
-plt.grid(True)
-plt.legend()
 
-# Plot over filenames: regcoil_distances, min(coil_surf_dist), LgradB_keyed
+def vs_plot(x_data, y_data):
+    x_vals, x_label = x_data
+    y_vals, y_label = y_data
+    title = x_label + " vs " + y_label
+
+    # Linear fit
+    reg = linregress(x_vals, y_vals)
+    plt.axline(
+        xy1=(0, reg.intercept),
+        slope=reg.slope,
+        color="k",
+        label=f"Linear fit: $R^2$ = {reg.rvalue**2:.2f}",
+    )
+
+    plt.scatter(x_vals, y_vals, label=title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.gca().set_ylim(bottom=0)
+    plt.gca().set_xlim(left=0)
+    plt.grid(True)
+
+
+plt.figure()
+vs_plot(regcoil_vals, LgradB_vals)
+plt.figure()
+vs_plot(regcoil_vals, coil_min_vals)
+plt.figure()
+vs_plot(LgradB_vals, coil_min_vals)
+
+# Plot over filenames: regcoil_distances, filament coil distance, L*_{\nabla B}
 plt.figure(figsize=(12, 8))
-plt.plot(filenames, regcoil_vals, label="regcoil_distances", marker="o")
-plt.plot(filenames, coil_min_vals, label="min(coil_surf_dist)", marker="s")
-plt.plot(filenames, LgradB_vals, label="LgradB_keyed", marker="^")
+plt.plot(filenames, regcoil_vals[0], marker="o", label=regcoil_vals[1])
+plt.plot(filenames, coil_min_vals[0], marker="s", label=coil_min_vals[1])
+plt.plot(filenames, LgradB_vals[0], marker="^", label=LgradB_vals[1])
 plt.xlabel("Filenames")
 plt.ylabel("Values")
-plt.title("Values across filenames")
+plt.title("Comparison of different metrics")
 plt.xticks(rotation=45)
-plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
