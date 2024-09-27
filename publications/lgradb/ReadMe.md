@@ -1,4 +1,7 @@
+# Steps to preprocess files
+
 Copy all relevant files
+
 ```bash
 # Directory paths
 source_dir="../single-stage-opt/quasr_coil_check/QUASR_db/nml"
@@ -42,6 +45,7 @@ done
 ```
 
 Add missing input parameters:
+
 ```bash
 insert_text="MPOL = 9\nNTOR = 9\n\nNCURR = 1\nCURTOR = 0.00000000000000E+00\nAC = 0.00000000000000E+00\n"
 
@@ -56,6 +60,7 @@ done
 ```
 
 Run DESC on them:
+
 ```bash
 for file in "${files[@]}"; do
     python -m desc "$target_dir/$file"
