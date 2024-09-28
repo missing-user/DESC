@@ -117,6 +117,7 @@ def vs_plot(x_data, y_data):
     title = x_label + " vs " + y_label
 
     # Linear fit
+    # TODO this Fails because some values are inf!!
     reg = linregress(x_vals, y_vals)
     plt.axline(
         xy1=(0, reg.intercept),
@@ -132,6 +133,7 @@ def vs_plot(x_data, y_data):
     plt.gca().set_ylim(bottom=0)
     plt.gca().set_xlim(left=0)
     plt.grid(True)
+    plt.legend()
 
 
 plt.figure()
